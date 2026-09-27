@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher foreground: three rising bars past a dashed target line.
+     Drawn inside the 66dp safe zone of the 108dp adaptive-icon canvas. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FF7BAFA9"
+        android:pathData="M33,60h11v15h-11z M48.5,50h11v25h-11z M64,38h11v37h-11z" />
+    <path
+        android:fillColor="#FFD9A95B"
+        android:pathData="M30,45h6v2.5h-6z M40,45h6v2.5h-6z M50,45h6v2.5h-6z M60,45h6v2.5h-6z M70,45h6v2.5h-6z" />
+    <path
+        android:fillColor="#FFECE8E0"
+        android:pathData="M30,77h48v3h-48z" />
+</vector>

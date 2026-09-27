@@ -1,0 +1,5 @@
+# Keep LF line endings (build.sh and the Python run on Unix-style tooling)
+* text=auto eol=lf
+*.png binary
+*.jks binary
+*.apk binary

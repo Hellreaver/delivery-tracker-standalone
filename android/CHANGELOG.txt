@@ -1,0 +1,13 @@
+# Newest first. Write changes under "Unreleased"; build.sh renames that
+# heading to the version it builds (1.N, where N is the versionCode).
+# Items start with "- "; indent continuation lines with two spaces.
+
+1.1
+- First standalone release. The app runs its own server on the phone, so it
+  needs no computer and no signal; everything is stored on the phone
+- Settings > Android app: save a backup, restore one, and pick a folder for
+  automatic daily backups (the last 14 days are kept)
+- The app checks GitHub for a newer version and offers to download it
+- Targets are called Base and Stretch
+- Editing a saved live shift lists its deliveries newest first, like the Uber
+  app, with a button to flip the order

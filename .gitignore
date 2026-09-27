@@ -1,0 +1,19 @@
+# Signing key and its passwords: never commit. Back these up somewhere else;
+# losing release.jks means future updates can't install over the current app.
+android/signing/
+
+# Build output. Each version's APK is attached to its GitHub release instead.
+*.apk
+android/delivery-tracker.apk.json
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+
+__pycache__/
+*.pyc
+
+# Live data lives in /mnt/user/appdata/delivery-tracker, not here
+*.db
+*.db-*
+*.bak*
