@@ -60,6 +60,27 @@ object Backups {
         return "Backup saved"
     }
 
+    /** Fetch a CSV export from the app's own server and write it where the user chose. */
+    fun saveExport(c: Context, path: String, dest: Uri): String {
+        TrackerApp.awaitServer()
+        val conn = java.net.URL(TrackerApp.SERVER + path).openConnection() as java.net.HttpURLConnection
+        try {
+            conn.connectTimeout = 10_000
+            conn.readTimeout = 60_000
+            if (conn.responseCode != 200) {
+                val err = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                throw IllegalStateException(Regex("\"error\":\\s*\"([^\"]*)").find(err)?.groupValues?.get(1) ?: "export failed (${conn.responseCode})")
+            }
+            c.contentResolver.openOutputStream(dest, "wt").use { out ->
+                requireNotNull(out) { "couldn't open the destination" }
+                conn.inputStream.use { it.copyTo(out) }
+            }
+        } finally {
+            conn.disconnect()
+        }
+        return "CSV saved"
+    }
+
     /** Replace the database with a backup file the user picked. Returns "" or an error. */
     fun restoreFrom(c: Context, src: Uri): String {
         TrackerApp.awaitServer()

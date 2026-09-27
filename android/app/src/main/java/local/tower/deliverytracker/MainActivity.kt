@@ -220,6 +220,7 @@ class MainActivity : Activity() {
                     when (requestCode) {
                         REQ_BACKUP -> Backups.saveTo(applicationContext, uri) to true
                         REQ_FOLDER -> Backups.setFolder(applicationContext, uri) to true
+                        REQ_EXPORT -> Backups.saveExport(applicationContext, pendingExport ?: "", uri) to true
                         REQ_RESTORE -> Backups.restoreFrom(applicationContext, uri).let {
                             if (it.isEmpty()) "Restored. Everything now matches the backup." to true else it to false
                         }
@@ -240,6 +241,9 @@ class MainActivity : Activity() {
             }
         }
     }
+
+    /** The /api/export.csv path waiting for the user to pick where to save it. */
+    private var pendingExport: String? = null
 
     private fun backupResult(msg: String, ok: Boolean) {
         web.evaluateJavascript("window.onBackupResult && window.onBackupResult(${JSONObject.quote(msg)}, $ok)", null)
@@ -385,6 +389,14 @@ class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun saveExport(path: String?, name: String?) = runOnUiThread {
+            if (path.isNullOrEmpty() || !path.startsWith("/api/export.csv")) return@runOnUiThread
+            pendingExport = path
+            pick(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("text/csv").putExtra(Intent.EXTRA_TITLE, name ?: "delivery-tracker.csv"), REQ_EXPORT)
+        }
+
+        @JavascriptInterface
         fun chooseBackupFolder() = runOnUiThread {
             pick(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
                 .addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION or
@@ -411,6 +423,7 @@ class MainActivity : Activity() {
         private const val REQ_BACKUP = 3
         private const val REQ_RESTORE = 4
         private const val REQ_FOLDER = 5
+        private const val REQ_EXPORT = 6
         private const val PAUSE_AFTER_MS = 60_000L
         private val MIME = mapOf(
             "html" to "text/html",

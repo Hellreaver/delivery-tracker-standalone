@@ -152,6 +152,22 @@ To fix a shift after saving it, use **History > Edit**. The deliveries are
 listed newest first, like the Uber app; the button above the list flips them
 to oldest first.
 
+## Export for taxes
+
+**Settings > Export CSV** saves a spreadsheet file wherever you pick (Files,
+Downloads, Google Drive). Pick the rows, a date range (leave both dates empty
+for everything), then **Download CSV**:
+
+- **Mileage log (for taxes)**: date, vehicle, start and end time, business
+  miles, where the miles came from (GPS, typed in, or estimated), and the
+  purpose. This is the record the IRS standard mileage deduction asks for.
+  Export the whole year before you do your taxes.
+- **One per shift**: every number the app keeps for each shift.
+- **One per delivery**: each delivery on a live shift, with its time.
+- **One per day** / **One per week**: totals with your Base and Stretch.
+
+The Week and Month tabs also have an export button for just that period.
+
 ## Back up your data
 
 All your shifts live only on this phone. **Uninstalling the app deletes

@@ -1790,6 +1790,12 @@ function exportCSV(kind, start, end) {
   const p = new URLSearchParams({ kind, today: todayISO(), tz: String(new Date().getTimezoneOffset()) });
   if (start) p.set("start", start);
   if (end) p.set("end", end);
+  // In the app, save through Android's "Save as" picker: handing a
+  // 127.0.0.1 link to Chrome depends on this app staying awake behind it.
+  if (native && native.saveExport) {
+    const name = `delivery-tracker-${kind}-${start || "all"}${end && end !== start ? `-to-${end}` : ""}.csv`;
+    return native.saveExport(`/api/export.csv?${p}`, name);
+  }
   openUrl(`/api/export.csv?${p}`);
 }
 
