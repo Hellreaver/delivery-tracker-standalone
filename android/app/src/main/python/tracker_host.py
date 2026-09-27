@@ -28,7 +28,11 @@ def start(data_dir, port):
         app.init_db()
         srv = app.ThreadingHTTPServer(("127.0.0.1", int(port)), app.Handler)
         srv.daemon_threads = True
-        threading.Thread(target=srv.serve_forever, name="tracker-http", daemon=True).start()
+        # serve_forever wakes every poll_interval seconds only to check for a
+        # shutdown that never comes; requests wake it immediately regardless.
+        # The default 0.5 s would stop the phone idling during a shift.
+        threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 3600},
+                         name="tracker-http", daemon=True).start()
         _server = srv
 
 
