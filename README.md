@@ -13,6 +13,19 @@ page for a newer version.
 
 It needs Android 12 or newer.
 
+## Quick start
+
+1. [Install the app](#install) and open it.
+2. When you go online in Uber, tap **Start shift** on the Log tab.
+3. **After every delivery**, before taking the next one, enter what it paid,
+   the paid miles and the "before tip" amount from Uber's trip screen, then
+   tap **Add**.
+4. When you go offline, tap **Finish and save**.
+
+That's the whole routine. Set up your car, targets and backups once in
+[Settings](#set-it-up-for-your-car); [On a shift](#on-a-shift) has the
+details.
+
 ## Install
 
 1. On the phone, open the [latest release](https://github.com/Hellreaver/delivery-tracker-standalone/releases/latest)
