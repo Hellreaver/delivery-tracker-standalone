@@ -67,8 +67,11 @@ DEFAULT_SETTINGS = {
     ],
 }
 
-# No targets until you set your own in Settings.
-DEFAULT_TARGETS = []
+# Monthly gross targets seeded on first run: about $300 in a good week
+# (~$1,300 a month) as Stretch, $1,000 as Base. A single row applies to every
+# month until Settings adds another.
+DEFAULT_BASE = 1000.0
+DEFAULT_STRETCH = 1300.0
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS entries (
@@ -258,9 +261,9 @@ def init_db():
                                  (rate, name))
                 conn.execute(f"UPDATE {table} SET maint_per_mile = 0 WHERE maint_per_mile IS NULL")
             if conn.execute("SELECT COUNT(*) FROM targets").fetchone()[0] == 0:
-                conn.executemany(
+                conn.execute(
                     "INSERT INTO targets (month, survive, thrive) VALUES (?, ?, ?)",
-                    DEFAULT_TARGETS,
+                    (dt.date.today().strftime("%Y-%m"), DEFAULT_BASE, DEFAULT_STRETCH),
                 )
 
 

@@ -100,8 +100,9 @@ percentage to use. This is an estimate for budgeting, not tax advice.
 
 ### Targets
 
-Under **Monthly targets**, enter a Base and a Stretch for each month, as
-gross Uber pay (before gas and taxes):
+Under **Monthly targets**, set a Base and a Stretch as gross Uber pay
+(before gas and taxes). The app starts with **Base $1,000** and **Stretch
+$1,300** a month; $1,300 is about $300 in a good week. Change them to fit you:
 
 - **Base**: the least you need from deliveries that month.
 - **Stretch**: what you're aiming for.
@@ -112,9 +113,10 @@ days, so the Week tab shows where you should be by today.
 
 ### Good and minimum $/mile
 
-A delivery is shown green at or above **Good $/mile** ($1.25 to start), red
-below **Minimum $/mile** ($0.75), and amber in between. That's gross pay per
-paid mile. Set them to the offers you'd accept and decline.
+Each delivery's $/mile badge is red at or below **Minimum $/mile** ($0.75 to
+start), green at or above **Good $/mile** ($1.25), and blends through amber in
+between: halfway ($1.00 with the starting values) is amber. That's gross pay
+per paid mile. Set the two numbers to the offers you'd decline and accept.
 
 ## On a shift
 

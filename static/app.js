@@ -205,6 +205,20 @@ function status(actual, survive, thrive) {
   return { cls: "behind", text: "Below base" };
 }
 
+// A smooth version of perMileClass for the $/mile chips: red at or below the
+// Minimum $/mile setting, amber halfway to Good $/mile, green at or above it,
+// blended in between. Mixed in OKLCH so amber-to-green passes through
+// yellow-green instead of grey. The class stays as the fallback colour.
+function perMileStyle(ppm) {
+  const lo = Number(state.settings.min_per_mile), hi = Number(state.settings.good_per_mile);
+  if (ppm == null || !Number.isFinite(ppm) || !(hi > lo)) return "";
+  const t = Math.min(Math.max((ppm - lo) / (hi - lo), 0), 1);
+  const [a, b, w] = t < 0.5 ? ["--bad", "--warn", t * 2] : ["--warn", "--good", (t - 0.5) * 2];
+  const pct = ((1 - w) * 100).toFixed(1);
+  const mix = (x, y) => `color-mix(in oklch, var(${x}) ${pct}%, var(${y}))`;
+  return `color:${mix(a, b)};background:${mix(a + "-bg", b + "-bg")}`;
+}
+
 function perMileClass(ppm) {
   if (ppm == null || !Number.isFinite(ppm)) return "idle";
   if (ppm >= Number(state.settings.good_per_mile)) return "thrive";
@@ -666,7 +680,7 @@ function renderDList() {
     return `<div class="drow ${state.editingDeliveryId === d.client_id ? "editing" : ""}" data-did="${esc(d.client_id)}">
       <span class="mono"><span class="muted small">#${n}</span> ${money(d.amount, 2)}</span>
       <span class="mono">${num(d.miles, 1)} mi</span>
-      <span class="chip ${perMileClass(ppm)}">${ppm != null ? `${money(ppm, 2)}/mi gross` : "-"}</span>
+      <span class="chip ${perMileClass(ppm)}" style="${perMileStyle(ppm)}">${ppm != null ? `${money(ppm, 2)}/mi gross` : "-"}</span>
       <button type="button" class="x" data-ddel="${esc(d.client_id)}" aria-label="Delete delivery">✕</button>
       <span class="muted small mono drow-sub">${timeOf(d.at)}${d.tip ? ` · ${money(uber, 2)} Uber · ${money(d.tip, 2)} tip` : ""}</span>
     </div>`;
@@ -685,7 +699,7 @@ function updateOfferHint() {
     const ppm = amount / miles;
     const cls = perMileClass(ppm);
     const word = { thrive: "good", survive: "okay", behind: "below your minimum" }[cls];
-    el.innerHTML = `<span class="chip ${cls}">${money(ppm, 2)}/mi</span> <span class="muted">${word}</span> ${editing}`;
+    el.innerHTML = `<span class="chip ${cls}" style="${perMileStyle(ppm)}">${money(ppm, 2)}/mi</span> <span class="muted">${word}</span> ${editing}`;
   } else {
     el.innerHTML = editing;
   }

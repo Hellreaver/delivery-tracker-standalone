@@ -2,7 +2,11 @@
 # heading to the version it builds (1.N, where N is the versionCode).
 # Items start with "- "; indent continuation lines with two spaces.
 
-Unreleased
+1.2
+- New installs start with monthly targets of Base $1,000 and Stretch $1,300
+- The $/mile badge on each delivery blends from red at your Minimum $/mile,
+  through amber halfway, to green at your Good $/mile, instead of three
+  fixed colors
 - Less battery during a shift: the app's built-in server no longer wakes
   up twice a second while waiting; it only runs when the app asks it something
 
