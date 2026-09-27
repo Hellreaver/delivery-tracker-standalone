@@ -67,8 +67,8 @@ DEFAULT_SETTINGS = {
     ],
 }
 
-# Monthly gross targets seeded on first run: about $300 in a good week
-# (~$1,300 a month) as Stretch, $1,000 as Base. A single row applies to every
+# Monthly gross targets seeded on first run. $300 a week x 52 / 12 is
+# ~$1,300 a month (Stretch); Base is $1,000. A single row applies to every
 # month until Settings adds another.
 DEFAULT_BASE = 1000.0
 DEFAULT_STRETCH = 1300.0

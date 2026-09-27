@@ -102,7 +102,8 @@ percentage to use. This is an estimate for budgeting, not tax advice.
 
 Under **Monthly targets**, set a Base and a Stretch as gross Uber pay
 (before gas and taxes). The app starts with **Base $1,000** and **Stretch
-$1,300** a month; $1,300 is about $300 in a good week. Change them to fit you:
+$1,300** a month. $1,300 a month works out to $300 a week, because a month
+averages 4.33 weeks (52 ÷ 12). Change them to fit you:
 
 - **Base**: the least you need from deliveries that month.
 - **Stretch**: what you're aiming for.
