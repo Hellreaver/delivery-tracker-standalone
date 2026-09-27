@@ -39,7 +39,8 @@ const KEYS = {
   outbox: "delivery-tracker:outbox",
   settings: "delivery-tracker:settings",
   hellos: "delivery-tracker:hellos",
-  editOrder: "delivery-tracker:edit-order",   // "newest" (Uber's order) or "oldest"
+  editOrder: "delivery-tracker:edit-order",
+  update: "delivery-tracker:update",   // last GitHub check: { checked_at, code, name, dismissed }   // "newest" (Uber's order) or "oldest"
 };
 function lsGet(key, fallback) {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
@@ -513,6 +514,7 @@ function vehicleOptions(selected) {
 function renderLive({ clearAdd = false } = {}) {
   const el = $("#live");
   if (!state.settings) return;
+  renderUpdateNote();   // hidden while a shift runs
   const snap = clearAdd ? {} : captureLive();
 
   if (!state.session) {
@@ -1652,6 +1654,42 @@ async function latestRelease() {
            url: apk.browser_download_url, size: apk.size };
 }
 
+// A quiet heads-up when GitHub has a newer version: one line at the top of
+// the Log tab and a dot on the Settings tab. Checked at most every 12 hours,
+// never shown while a shift is running, and "Not now" hides the line until
+// the next version (the dot stays until it's installed).
+const UPDATE_EVERY_MS = 12 * 3600 * 1000;
+
+async function checkForUpdate() {
+  if (!native || !native.backupInfo) return;
+  let u = lsGet(KEYS.update, {});
+  if (!u.checked_at || Date.now() - u.checked_at > UPDATE_EVERY_MS) {
+    try {
+      const rel = await latestRelease();
+      u = { ...u, checked_at: Date.now(), code: rel ? rel.code : 0, name: rel ? rel.name : "" };
+      lsSet(KEYS.update, u);
+    } catch {
+      // no signal: the next launch tries again
+    }
+  }
+  renderUpdateNote();
+}
+
+function renderUpdateNote() {
+  const u = lsGet(KEYS.update, {});
+  const mine = Number((gpsStatus() || {}).version_code) || 0;
+  const newer = u.code > mine;
+  const tab = $('.tabbar button[data-view="settings"]');
+  if (tab) tab.classList.toggle("has-update", newer);
+  const el = $("#update-note");
+  if (!el) return;
+  const visible = newer && !state.session && u.dismissed !== u.code;
+  el.hidden = !visible;
+  el.innerHTML = visible
+    ? `Version ${esc(u.name)} of the app is available.<button type="button" class="linkish" id="update-see">See what's new</button><button type="button" class="linkish" id="update-later">Not now</button>`
+    : "";
+}
+
 async function renderAppCard() {
   const body = $("#app-card-body");
   if (!body) return;
@@ -1757,6 +1795,7 @@ function exportCSV(kind, start, end) {
 
 /* ---------- navigation ---------- */
 function show(view) {
+  renderUpdateNote();
   state.view = view;
   $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
   $$(".tabbar button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
@@ -1860,6 +1899,17 @@ function bind() {
     ev.target.closest(".trow").remove();
   });
 
+  $("#update-note").addEventListener("click", (ev) => {
+    if (ev.target.closest("#update-see")) {
+      show("settings");
+      $("#app-card").scrollIntoView({ block: "start" });
+    } else if (ev.target.closest("#update-later")) {
+      const u = lsGet(KEYS.update, {});
+      lsSet(KEYS.update, { ...u, dismissed: u.code });
+      renderUpdateNote();
+    }
+  });
+
   $("#app-card").addEventListener("click", (ev) => {
     if (!native || !native.backupInfo) return;
     const dl = ev.target.closest("#app-download");
@@ -1929,6 +1979,7 @@ async function init() {
   reconcileGps();
   flush();
   if (native && native.flushTrack) native.flushTrack();
+  checkForUpdate();
 }
 
 init();
