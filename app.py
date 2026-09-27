@@ -252,6 +252,9 @@ def init_db():
                     "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
                     (key, json.dumps(value)),
                 )
+            # The day tracking began; see tracking_start().
+            conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('tracking_start', ?)",
+                         (json.dumps(dt.date.today().isoformat()),))
             # Shifts saved before wear was tracked get their vehicle's measured
             # rate, once. After this every new shift carries its own value.
             rates = {v["name"]: v["maint_per_mile"] for v in load_settings(conn)["vehicles"]}
@@ -1042,6 +1045,22 @@ SUM_KEYS = ("gross", "tips", "cash", "fuel", "wear", "tax", "deduction",
             "hours_gross", "hours_cash", "orders_gross", "tips_gross")
 
 
+def tracking_start(conn, settings):
+    """First day that counts: the day the app was set up, or the earliest
+    logged shift if one is older. Days before it are left out of summaries, so
+    someone who installs mid-month isn't shown the whole month's target as
+    missed."""
+    dates = []
+    try:
+        dates.append(dt.date.fromisoformat(settings.get("tracking_start")))
+    except (TypeError, ValueError):
+        pass
+    first = conn.execute("SELECT MIN(date) FROM entries").fetchone()[0]
+    if first:
+        dates.append(dt.date.fromisoformat(first))
+    return min(dates) if dates else dt.date.min
+
+
 def summarize(conn, start, end, today, max_days=400):
     if end < start:
         raise bad("end is before start")
@@ -1054,7 +1073,7 @@ def summarize(conn, start, end, today, max_days=400):
         (start.isoformat(), end.isoformat()))]
 
     days = {}
-    d = start
+    d = max(start, tracking_start(conn, settings))
     while d <= end:
         t = target_for(targets, d.strftime("%Y-%m"))
         dim = calendar.monthrange(d.year, d.month)[1]

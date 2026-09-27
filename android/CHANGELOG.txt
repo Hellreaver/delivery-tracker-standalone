@@ -2,6 +2,11 @@
 # heading to the version it builds (1.N, where N is the versionCode).
 # Items start with "- "; indent continuation lines with two spaces.
 
+1.3
+- Targets count from the day you start using the app (or your earliest
+  logged shift). Days before that no longer show up, so installing mid-month
+  doesn't show you hundreds of dollars behind
+
 1.2
 - New installs start with monthly targets of Base $1,000 and Stretch $1,300
 - The $/mile badge on each delivery blends from red at your Minimum $/mile,
