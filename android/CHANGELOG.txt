@@ -2,6 +2,10 @@
 # heading to the version it builds (1.N, where N is the versionCode).
 # Items start with "- "; indent continuation lines with two spaces.
 
+1.5
+- Confirmations (like deleting a shift) show as a normal dialog, without
+  the "The page at http://... says:" heading
+
 1.4
 - When a new version is out, a line at the top of the Log tab says so,
   with a dot on the Settings tab. It never shows during a shift, and "Not

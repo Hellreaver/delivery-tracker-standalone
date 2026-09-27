@@ -3,6 +3,7 @@ package local.tower.deliverytracker
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
@@ -10,6 +11,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import android.webkit.JavascriptInterface
+import android.webkit.JsResult
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -46,7 +48,7 @@ class MainActivity : Activity() {
             settings.domStorageEnabled = true
             settings.allowFileAccess = false
             settings.allowContentAccess = false
-            webChromeClient = WebChromeClient()   // enables confirm() dialogs
+            webChromeClient = Dialogs()   // confirm() and alert() as plain app dialogs
             webViewClient = Client()
             addJavascriptInterface(Bridge(), "TrackerNative")
         }
@@ -249,6 +251,31 @@ class MainActivity : Activity() {
             startActivityForResult(intent, request)
         } catch (e: RuntimeException) {
             backupResult("No file picker on this phone", false)
+        }
+    }
+
+    /**
+     * The page's confirm() and alert() as ordinary dialogs. WebView's own
+     * version heads every one with "The page at http://... says:".
+     */
+    private inner class Dialogs : WebChromeClient() {
+        override fun onJsConfirm(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
+            AlertDialog.Builder(this@MainActivity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok) { _, _ -> result.confirm() }
+                .setNegativeButton(android.R.string.cancel) { _, _ -> result.cancel() }
+                .setOnCancelListener { result.cancel() }
+                .show()
+            return true
+        }
+
+        override fun onJsAlert(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
+            AlertDialog.Builder(this@MainActivity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok) { _, _ -> result.confirm() }
+                .setOnCancelListener { result.confirm() }
+                .show()
+            return true
         }
     }
 
