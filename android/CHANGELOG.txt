@@ -2,6 +2,14 @@
 # heading to the version it builds (1.N, where N is the versionCode).
 # Items start with "- "; indent continuation lines with two spaces.
 
+1.7
+- Finished quests: Log tab > "Add a finished quest" takes the day you
+  finished it, the bonus and an optional note. It counts toward that day's
+  and week's targets and the tax set-aside, and toward the week's and
+  month's $/hour and $/mile. It isn't an order and doesn't change any one
+  shift's numbers. History lists quests with Edit and Delete, and Export
+  CSV has "One per quest"
+
 1.6
 - Export CSV (including the mileage log for taxes) saves the file where you
   choose, through the same picker as backups, instead of handing it to Chrome

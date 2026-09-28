@@ -18,6 +18,8 @@ const state = {
   monthStart: null,
   histMonth: null,
   histEntries: new Map(),
+  histQuests: new Map(),
+  editingQuestId: null,  // quest open in the Log tab's quest form
   dayBefore: null,        // shifts already saved today, from /api/summary
   // Live shift. This is the local copy; the server copy replaces it whenever
   // nothing is waiting in the outbox.
@@ -641,7 +643,7 @@ function updateLiveNumbers() {
       <div><span class="k">Gross tonight</span><div class="big">${money(st.gross, 2)}</div></div>
       <div class="right"><span class="k">You keep</span><div class="v">${money(st.c.cash, 2)}</div><span class="chip ${chip.cls}">${chip.text}</span></div>
     </div>
-    ${before ? `<div class="small muted daybefore">Plus ${before.entries} earlier shift${before.entries === 1 ? "" : "s"} today:
+    ${before ? `<div class="small muted daybefore">Plus ${beforeLabel(before)} today:
       <span class="mono">${money(before.gross, 2)}</span> gross, <span class="mono">${money(before.cash, 2)}</span> kept.
       Today so far <span class="mono">${money(dayGross, 2)}</span> gross, <span class="mono">${money(dayCash, 2)}</span> kept.</div>` : ""}
     ${barHTML(before ? "Base today" : "Base", dayGross, ps.survive, 0, false)}
@@ -1287,6 +1289,90 @@ async function onSubmit(ev) {
   }
 }
 
+/* ---------- quests ---------- */
+// A quest bonus is booked on the day it was finished. It counts toward that
+// day's and week's targets and the tax set-aside, and toward week and month
+// $/hour and $/mile, but not toward any one shift's numbers or the order count.
+const qField = (name) => $("#quest-form").elements.namedItem(name);
+
+function resetQuestForm() {
+  state.editingQuestId = null;
+  $("#quest-form").reset();
+  qField("date").value = todayISO();
+  $("#quest-title").textContent = "Add a finished quest";
+  $("#quest-save").textContent = "Add quest";
+  $("#quest-cancel").hidden = true;
+  updateQuestPreview();
+}
+
+function startQuestEdit(q) {
+  state.editingQuestId = q.id;
+  qField("date").value = q.date;
+  qField("amount").value = q.amount;
+  qField("note").value = q.note || "";
+  $("#quest-title").textContent = `Edit quest, ${shortDate(q.date)}`;
+  $("#quest-save").textContent = "Update quest";
+  $("#quest-cancel").hidden = false;
+  $("#quest-card").open = true;
+  show("log");
+  updateQuestPreview();
+  $("#quest-card").scrollIntoView({ block: "start" });
+}
+
+function updateQuestPreview() {
+  const amount = Number(qField("amount").value) || 0;
+  const stored = state.editingQuestId ? state.histQuests.get(state.editingQuestId) : null;
+  const rate = stored ? stored.tax_rate : state.settings ? Number(state.settings.tax_rate) : null;
+  $("#quest-preview").textContent = amount > 0 && rate != null
+    ? `You keep ${money(amount * (1 - rate / 100), 2)} after the ${num(rate, 1)}% tax set-aside.` : "";
+}
+
+async function onQuestSubmit(ev) {
+  ev.preventDefault();
+  if (!$("#quest-form").reportValidity()) return;
+  const body = { date: qField("date").value, amount: Number(qField("amount").value), note: qField("note").value };
+  const btn = $("#quest-save");
+  btn.disabled = true;
+  try {
+    const id = state.editingQuestId;
+    if (id) await api(`/api/quests/${id}`, { method: "PUT", body });
+    else await api("/api/quests", { method: "POST", body });
+    resetQuestForm();
+    $("#quest-card").open = false;
+    toast(id ? "Quest updated" : `Quest added: ${money(body.amount, 2)} on ${shortDate(body.date)}`);
+    show(id ? "history" : "log");
+  } catch (e) {
+    toast(e.network ? "No signal. Adding a quest needs the server." : e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function questCardHTML(q) {
+  return `
+      <div class="card entry">
+        <div class="entry-top">
+          <div><strong>${shortDate(q.date)}</strong> <span class="chip quest">Quest</span></div>
+          <div class="gross">+${money(q.amount, 2)}</div>
+        </div>
+        <div class="line">Kept <strong class="mono">${money(q.cash, 2)}</strong> after the ${num(q.tax_rate, 1)}% tax set-aside</div>
+        ${q.note ? `<div class="line">${esc(q.note)}</div>` : ""}
+        <div class="actions">
+          <button type="button" data-qedit="${q.id}">Edit</button>
+          <button type="button" class="danger" data-qdel="${q.id}">Delete</button>
+        </div>
+      </div>`;
+}
+
+// What the day already has besides the running shift: "2 earlier shifts",
+// "$40.00 in quests", or both.
+function beforeLabel(b) {
+  const parts = [];
+  if (b.entries) parts.push(`${b.entries} earlier shift${b.entries === 1 ? "" : "s"}`);
+  if (b.quests) parts.push(`${money(b.quests, 2)} in quests`);
+  return parts.join(" and ");
+}
+
 /* ---------- today card ---------- */
 async function refreshToday() {
   const t = todayISO();
@@ -1298,8 +1384,8 @@ async function refreshToday() {
     const s = await api(`/api/summary?start=${ws}&end=${we}&today=${t}`);
     state.online = true;
     const day = s.days.find((d) => d.date === t);
-    state.dayBefore = day && day.entries
-      ? { gross: day.gross, cash: day.cash, entries: day.entries, date: t } : null;
+    state.dayBefore = day && (day.entries || day.quest_count)
+      ? { gross: day.gross, cash: day.cash, entries: day.entries, quests: day.quests, date: t } : null;
     updateLiveNumbers();
     const ps = perShift(t);
     const runToday = run && state.session && state.session.date === t ? run.gross : 0;
@@ -1313,12 +1399,14 @@ async function refreshToday() {
         <div>
           <span class="k">Today</span>
           <div class="v">${money(dayGross, 2)}</div>
+          ${day.quests ? `<div class="small muted">incl. <span class="mono">${money(day.quests, 2)}</span> quest</div>` : ""}
           <div class="small muted">shift target <span class="mono">${money(ps.survive, 0)}</span> base, <span class="mono">${money(ps.thrive, 0)}</span> stretch</div>
           <div style="margin-top:6px"><span class="chip ${dayStatus.cls}">${dayStatus.text}</span></div>
         </div>
         <div>
           <span class="k">This week</span>
           <div class="v">${money(weekGross)}</div>
+          ${s.totals.quests ? `<div class="small muted">incl. <span class="mono">${money(s.totals.quests, 2)}</span> in quests</div>` : ""}
           <div class="small muted">of <span class="mono">${money(s.targets.survive)}</span> base, <span class="mono">${money(s.targets.thrive)}</span> stretch</div>
           <div style="margin-top:6px"><span class="chip ${wk.cls}">${wk.text}</span></div>
         </div>
@@ -1352,6 +1440,7 @@ function summaryHTML(s) {
           <span class="k">Gross</span>
           <div class="big">${money(T.gross)}</div>
           <div class="small muted">kept <span class="mono">${money(T.cash)}</span> after fuel, wear and tax set-aside</div>
+          ${T.quests ? `<div class="small muted">incl. <span class="mono">${money(T.quests, 2)}</span> from ${T.quest_count} quest${T.quest_count === 1 ? "" : "s"}</div>` : ""}
         </div>
         <span class="chip ${st.cls}">${st.text}</span>
       </div>
@@ -1382,13 +1471,15 @@ function summaryHTML(s) {
 function daysHTML(days, today) {
   const head = `<div class="row head"><span>Day</span><span class="num">Gross</span><span class="num">Kept</span><span class="num">Hrs</span><span class="num">$/hr</span></div>`;
   return head + days.map((d) => {
-    const cls = `${d.entries ? "" : "empty"} ${d.date === today ? "today" : ""}`;
+    const any = d.entries || d.quest_count;
+    const cls = `${any ? "" : "empty"} ${d.date === today ? "today" : ""}`;
     const perHr = d.hours ? d.hours_gross / d.hours : null;
-    const extra = d.entries > 1 ? ` <span class="muted small">x${d.entries}</span>` : "";
+    const extra = (d.entries > 1 ? ` <span class="muted small">x${d.entries}</span>` : "")
+      + (d.quest_count ? `<br><span class="muted small">+${money(d.quests, 2)} quest</span>` : "");
     return `<div class="row ${cls}">
       <span>${shortDate(d.date)}${extra}</span>
-      <span class="num">${d.entries ? money(d.gross, 2) : "-"}</span>
-      <span class="num">${d.entries ? money(d.cash, 2) : "-"}</span>
+      <span class="num">${any ? money(d.gross, 2) : "-"}</span>
+      <span class="num">${any ? money(d.cash, 2) : "-"}</span>
       <span class="num">${d.hours ? num(d.hours, 1) : "-"}</span>
       <span class="num">${money(perHr, 2)}</span>
     </div>`;
@@ -1462,16 +1553,20 @@ async function renderHistory() {
   $("#hist-label").textContent = monthLabel(start);
   const el = $("#history-list");
   try {
-    const { entries } = await api(`/api/entries?start=${start}&end=${end}`);
+    const [{ entries }, { quests }] = await Promise.all([
+      api(`/api/entries?start=${start}&end=${end}`),
+      api(`/api/quests?start=${start}&end=${end}`),
+    ]);
     state.histEntries = new Map(entries.map((e) => [e.id, e]));
+    state.histQuests = new Map(quests.map((q) => [q.id, q]));
     const perDay = new Map();
     for (const e of entries) perDay.set(e.date, (perDay.get(e.date) || 0) + 1);
     const seen = new Set();
-    if (!entries.length) {
+    if (!entries.length && !quests.length) {
       el.innerHTML = `<div class="card empty-note muted">No shifts logged in ${monthLabel(start)}.</div>`;
       return;
     }
-    el.innerHTML = entries.map((e) => `
+    const shifts = entries.map((e) => ({ date: e.date, html: `
       <div class="card entry">
         <div class="entry-top">
           <div><strong>${shortDate(e.date)}</strong> <span class="muted small">${esc(e.vehicle || "")}${e.from_live ? ", live shift" : ""}</span></div>
@@ -1487,7 +1582,11 @@ async function renderHistory() {
             ? `<button type="button" data-combine="${e.date}">Combine shifts</button>` : ""}
           <button type="button" class="danger" data-del="${e.id}">Delete</button>
         </div>
-      </div>`).join("");
+      </div>` }));
+    // Newest day first; a quest sits above that day's shifts.
+    const items = [...quests.map((q) => ({ date: q.date, html: questCardHTML(q) })), ...shifts]
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    el.innerHTML = items.map((x) => x.html).join("");
   } catch (e) { viewError(e); }
 }
 
@@ -1495,6 +1594,23 @@ async function onHistoryClick(ev) {
   const edit = ev.target.closest("[data-edit]");
   const del = ev.target.closest("[data-del]");
   const comb = ev.target.closest("[data-combine]");
+  const qedit = ev.target.closest("[data-qedit]");
+  const qdel = ev.target.closest("[data-qdel]");
+  if (qedit) {
+    const q = state.histQuests.get(Number(qedit.dataset.qedit));
+    if (q) startQuestEdit(q);
+    return;
+  }
+  if (qdel) {
+    const q = state.histQuests.get(Number(qdel.dataset.qdel));
+    if (!q || !confirm(`Delete the ${shortDate(q.date)} quest (${money(q.amount, 2)})? This can't be undone.`)) return;
+    try {
+      await api(`/api/quests/${q.id}`, { method: "DELETE" });
+      toast("Quest deleted");
+      renderHistory();
+    } catch (e) { viewError(e); }
+    return;
+  }
   if (comb) {
     const date = comb.dataset.combine;
     const same = [...state.histEntries.values()].filter((e) => e.date === date);
@@ -1830,6 +1946,7 @@ async function onResume() {
   const t = todayISO();
   $("#topdate").textContent = shortDate(t);
   if (formIsPristine() && field("date").value !== t) field("date").value = t;
+  if (!state.editingQuestId && !qField("amount").value) qField("date").value = t;
   await refreshSession();
   // Settings carry the calculated deadhead and its GPS shift count. Without
   // this they stay as they were when the app opened, so the numbers only moved
@@ -1842,6 +1959,7 @@ async function onResume() {
 function bind() {
   $$(".tabbar button").forEach((b) => b.addEventListener("click", () => {
     if (state.editingId && b.dataset.view !== "log") { exitEdit(); resetForm(); }
+    if (state.editingQuestId && b.dataset.view !== "log") resetQuestForm();
     show(b.dataset.view);
   }));
 
@@ -1872,6 +1990,13 @@ function bind() {
     });
   }
   $("#history-list").addEventListener("click", onHistoryClick);
+  $("#quest-form").addEventListener("submit", onQuestSubmit);
+  $("#quest-form").addEventListener("input", updateQuestPreview);
+  $("#quest-cancel").addEventListener("click", () => {
+    resetQuestForm();
+    $("#quest-card").open = false;
+    show("history");
+  });
 
   $$("[data-export]").forEach((b) => b.addEventListener("click", () => {
     if (b.dataset.export === "week") exportCSV("daily", state.weekStart, addDays(state.weekStart, 6));
@@ -1979,6 +2104,7 @@ async function init() {
   }
 
   resetForm(t);
+  resetQuestForm();
   renderLive();
   show("log");
   updateNet();

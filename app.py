@@ -154,6 +154,18 @@ CREATE TABLE IF NOT EXISTS passive_points (
     spd         REAL,
     PRIMARY KEY (session_id, t, prov)
 );
+-- Quest bonuses: a lump sum for a run of trips, not tied to one shift. Booked
+-- on the day the quest was finished. tax_rate is frozen like a shift's.
+CREATE TABLE IF NOT EXISTS quests (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    date        TEXT NOT NULL,
+    amount      REAL NOT NULL,
+    tax_rate    REAL NOT NULL,
+    note        TEXT,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_quests_date ON quests (date);
 CREATE TABLE IF NOT EXISTS ops_log (
     op_id       TEXT PRIMARY KEY,
     type        TEXT,
@@ -996,6 +1008,54 @@ def add_passive(conn, body):
     return {"stored": stored}
 
 
+# ---------------------------------------------------------------- quests
+
+def quest_values(q):
+    """A quest is Uber income, so it gets the tax set-aside. It has no miles,
+    hours or order of its own."""
+    out = dict(q)
+    out["tax"] = q["amount"] * q["tax_rate"] / 100
+    out["cash"] = q["amount"] - out["tax"]
+    return out
+
+
+def build_quest(body, settings, stored=None):
+    if not isinstance(body, dict):
+        raise bad("body must be a JSON object")
+    return {
+        "date": iso_date(body.get("date")).isoformat(),
+        "amount": round(number(body.get("amount"), "amount", 0.01, 10000), 2),
+        "note": text(body.get("note"), "note", 200),
+        # Frozen at creation, like a shift's costs.
+        "tax_rate": stored["tax_rate"] if stored else float(settings["tax_rate"]),
+    }
+
+
+def get_quest(conn, quest_id):
+    row = conn.execute("SELECT * FROM quests WHERE id = ?", (quest_id,)).fetchone()
+    if row is None:
+        raise HTTPError(404, "quest not found")
+    return dict(row)
+
+
+def save_quest(conn, q, quest_id=None):
+    ts = now_utc()
+    with conn:
+        if quest_id is None:
+            quest_id = conn.execute(
+                "INSERT INTO quests (date, amount, tax_rate, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (q["date"], q["amount"], q["tax_rate"], q["note"], ts, ts)).lastrowid
+        else:
+            conn.execute("UPDATE quests SET date = ?, amount = ?, note = ?, updated_at = ? WHERE id = ?",
+                         (q["date"], q["amount"], q["note"], ts, quest_id))
+    return quest_values(get_quest(conn, quest_id))
+
+
+def list_quests(conn, start, end):
+    return [quest_values(dict(r)) for r in conn.execute(
+        "SELECT * FROM quests WHERE date BETWEEN ? AND ? ORDER BY date DESC, id DESC", (start, end))]
+
+
 # ---------------------------------------------------------------- math
 
 def compute(e):
@@ -1042,7 +1102,8 @@ def target_for(targets, month):
 
 SUM_KEYS = ("gross", "tips", "cash", "fuel", "wear", "tax", "deduction",
             "paid_miles", "driven", "hours", "orders",
-            "hours_gross", "hours_cash", "orders_gross", "tips_gross")
+            "hours_gross", "hours_cash", "orders_gross", "tips_gross",
+            "quests", "quests_cash", "quest_count")
 
 
 def tracking_start(conn, settings):
@@ -1055,7 +1116,8 @@ def tracking_start(conn, settings):
         dates.append(dt.date.fromisoformat(settings.get("tracking_start")))
     except (TypeError, ValueError):
         pass
-    first = conn.execute("SELECT MIN(date) FROM entries").fetchone()[0]
+    first = conn.execute(
+        "SELECT MIN(d) FROM (SELECT date AS d FROM entries UNION ALL SELECT date FROM quests)").fetchone()[0]
     if first:
         dates.append(dt.date.fromisoformat(first))
     return min(dates) if dates else dt.date.min
@@ -1097,10 +1159,31 @@ def summarize(conn, start, end, today, max_days=400):
         if e.get("tips") is not None:
             row["tips_gross"] += e["gross"]
 
+    # Quests count toward the day's gross, kept and tax set-aside (so toward
+    # the targets), but not toward the day's hours-based or per-order figures.
+    quests = [quest_values(dict(r)) for r in conn.execute(
+        "SELECT * FROM quests WHERE date BETWEEN ? AND ? ORDER BY date, id",
+        (start.isoformat(), end.isoformat()))]
+    for q in quests:
+        row = days.get(q["date"])
+        if row is None:
+            continue
+        row["quests"] += q["amount"]
+        row["quests_cash"] += q["cash"]
+        row["quest_count"] += 1
+        row["gross"] += q["amount"]
+        row["cash"] += q["cash"]
+        row["tax"] += q["tax"]
+
     day_list = list(days.values())
     totals = {k: sum(r[k] for r in day_list) for k in SUM_KEYS}
     totals["entries"] = len(entries)
     totals["shift_days"] = sum(1 for r in day_list if r["entries"])
+    # A quest pays for a run of shifts, so the period's $/hour includes it even
+    # though no single day's does. $/mile already does (gross includes it).
+    if totals["hours"]:
+        totals["hours_gross"] += totals["quests"]
+        totals["hours_cash"] += totals["quests_cash"]
     totals["gross_per_hour"] = totals["hours_gross"] / totals["hours"] if totals["hours"] else None
     totals["cash_per_hour"] = totals["hours_cash"] / totals["hours"] if totals["hours"] else None
     totals["gross_per_paid_mile"] = (totals["gross"] / totals["paid_miles"]
@@ -1137,6 +1220,7 @@ def summarize(conn, start, end, today, max_days=400):
         "today": tstr,
         "days": day_list,
         "entries": entries,
+        "quests": [q for q in quests if q["date"] in days],
         "totals": totals,
         "targets": {
             "survive": survive,
@@ -1194,7 +1278,7 @@ ENTRY_CSV = (
     ("gross_per_driven_mile", "gross_per_driven_mile", 2), ("notes", "notes", None),
     ("created_at_utc", "created_at", None), ("updated_at_utc", "updated_at", None),
 )
-EXPORT_KINDS = ("entries", "daily", "weekly", "deliveries", "mileage")
+EXPORT_KINDS = ("entries", "daily", "weekly", "deliveries", "mileage", "quests")
 
 
 def export_csv(conn, kind, start, end, today, tz_offset_min=0):
@@ -1202,7 +1286,8 @@ def export_csv(conn, kind, start, end, today, tz_offset_min=0):
         raise bad("kind must be one of " + ", ".join(EXPORT_KINDS))
     if start is None or end is None:
         lo, hi = conn.execute(
-            "SELECT MIN(d), MAX(d) FROM (SELECT date AS d FROM entries UNION ALL SELECT date FROM sessions)"
+            "SELECT MIN(d), MAX(d) FROM (SELECT date AS d FROM entries UNION ALL SELECT date FROM sessions "
+            "UNION ALL SELECT date FROM quests)"
         ).fetchone()
         if lo is None:
             lo = hi = today.isoformat()
@@ -1223,6 +1308,11 @@ def export_csv(conn, kind, start, end, today, tz_offset_min=0):
                               (start.isoformat(), end.isoformat())):
             e = compute(dict(r))
             w.writerow([fmt(e.get(key), dp) for _, key, dp in ENTRY_CSV])
+    elif kind == "quests":
+        w.writerow(["id", "date", "amount", "tax_setaside_pct", "tax_setaside", "cash_kept", "note"])
+        for q in reversed(list_quests(conn, start.isoformat(), end.isoformat())):
+            w.writerow([q["id"], q["date"], fmt(q["amount"], 2), fmt(q["tax_rate"]), fmt(q["tax"], 2),
+                        fmt(q["cash"], 2), q["note"] or ""])
     elif kind == "mileage":
         w.writerow(["date", "vehicle", "start_local", "end_local", "business_miles", "miles_source",
                     "paid_miles", "gps_points", "purpose", "notes"])
@@ -1254,14 +1344,14 @@ def export_csv(conn, kind, start, end, today, tz_offset_min=0):
         if kind == "daily":
             w.writerow(["date", "weekday", "entries", "gross", "tips", "cash_kept", "fuel_cost",
                         "wear_cost", "tax_setaside", "hours", "paid_miles", "driven_miles", "orders",
-                        "survive_target", "thrive_target", "gross_minus_survive", "gross_minus_thrive"])
+                        "quests", "survive_target", "thrive_target", "gross_minus_survive", "gross_minus_thrive"])
             for d in s["days"]:
                 day = dt.date.fromisoformat(d["date"])
                 w.writerow([d["date"], day.strftime("%a"), d["entries"],
                             fmt(d["gross"], 2), fmt(d["tips"], 2), fmt(d["cash"], 2),
                             fmt(d["fuel"], 2), fmt(d["wear"], 2), fmt(d["tax"], 2), fmt(d["hours"], 2),
                             fmt(d["paid_miles"], 1), fmt(d["driven"], 1), int(d["orders"]),
-                            fmt(d["survive_target"], 2), fmt(d["thrive_target"], 2),
+                            fmt(d["quests"], 2), fmt(d["survive_target"], 2), fmt(d["thrive_target"], 2),
                             fmt(d["gross"] - d["survive_target"], 2),
                             fmt(d["gross"] - d["thrive_target"], 2)])
         else:
@@ -1508,6 +1598,30 @@ class Handler(BaseHTTPRequestHandler):
                 if method == "DELETE":
                     delete_entry(conn, entry_id)
                     return self.send_json({"deleted": entry_id})
+
+        if route == "quests":
+            if len(parts) == 2:
+                if method == "GET":
+                    start = iso_date(q["start"], "start").isoformat() if q.get("start") else "0000-01-01"
+                    end = iso_date(q["end"], "end").isoformat() if q.get("end") else "9999-12-31"
+                    return self.send_json({"quests": list_quests(conn, start, end)})
+                if method == "POST":
+                    return self.send_json({"quest": save_quest(conn, build_quest(self.read_json(), load_settings(conn)))}, 201)
+            elif len(parts) == 3:
+                try:
+                    quest_id = int(parts[2])
+                except ValueError:
+                    raise HTTPError(404, "quest not found")
+                stored = get_quest(conn, quest_id)
+                if method == "GET":
+                    return self.send_json({"quest": quest_values(stored)})
+                if method == "PUT":
+                    body = build_quest(self.read_json(), load_settings(conn), stored)
+                    return self.send_json({"quest": save_quest(conn, body, quest_id)})
+                if method == "DELETE":
+                    with conn:
+                        conn.execute("DELETE FROM quests WHERE id = ?", (quest_id,))
+                    return self.send_json({"deleted": quest_id})
 
         if route == "sync" and method == "POST":
             return self.send_json(sync(conn, self.read_json()))

@@ -152,6 +152,14 @@ To fix a shift after saving it, use **History > Edit**. The deliveries are
 listed newest first, like the Uber app; the button above the list flips them
 to oldest first.
 
+## Quest bonuses
+
+When you finish a quest, open **Log > Add a finished quest** and enter the
+day you finished it and the bonus. It counts toward that day's and week's
+Base and Stretch, the tax set-aside, and the week's and month's $/hour and
+$/mile. It doesn't change any one shift's numbers or the order count. Fix or
+remove it under **History**.
+
 ## Export for taxes
 
 **Settings > Export CSV** saves a spreadsheet file wherever you pick (Files,
@@ -165,6 +173,7 @@ for everything), then **Download CSV**:
 - **One per shift**: every number the app keeps for each shift.
 - **One per delivery**: each delivery on a live shift, with its time.
 - **One per day** / **One per week**: totals with your Base and Stretch.
+- **One per quest**: each quest bonus and its tax set-aside.
 
 The Week and Month tabs also have an export button for just that period.
 

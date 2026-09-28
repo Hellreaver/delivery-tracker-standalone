@@ -133,6 +133,7 @@ button:disabled { opacity: .6; }
 .chip.survive { background: var(--warn-bg); color: var(--warn); }
 .chip.behind { background: var(--bad-bg); color: var(--bad); }
 .chip.idle { background: var(--idle-bg); color: var(--muted); }
+.chip.quest { background: transparent; color: var(--accent-ink); border: 1px solid var(--accent); padding: 2px 8px; }
 
 .today-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 

@@ -88,6 +88,24 @@
         </div>
       </form>
     </details>
+
+    <details id="quest-card" class="card">
+      <summary><h2 id="quest-title">Add a finished quest</h2></summary>
+      <form id="quest-form" autocomplete="off" novalidate>
+        <div class="grid2">
+          <label>Day finished<input type="date" name="date" required></label>
+          <label>Bonus $
+            <input type="number" name="amount" inputmode="decimal" step="any" min="0.01" max="10000" placeholder="0.00" required></label>
+        </div>
+        <label>Note <input type="text" name="note" maxlength="200" placeholder="optional"></label>
+        <p class="muted small">Counts toward that day's and week's targets and the tax set-aside, and toward week and month $/hour and $/mile. It isn't an order and doesn't change any one shift's numbers.</p>
+        <div id="quest-preview" class="muted small"></div>
+        <div class="actions">
+          <button type="submit" class="primary" id="quest-save">Add quest</button>
+          <button type="button" class="ghost" id="quest-cancel" hidden>Cancel</button>
+        </div>
+      </form>
+    </details>
   </section>
 
   <!-- WEEK -->
@@ -181,6 +199,7 @@
             <option value="deliveries">One per delivery</option>
             <option value="daily">One per day</option>
             <option value="weekly">One per week</option>
+            <option value="quests">One per quest</option>
           </select></label>
         <span></span>
         <label>From<input type="date" id="export-start"></label>
